@@ -1,0 +1,306 @@
+.audio-recorder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  height: 100%;
+  background: transparent;
+  position: relative;
+  overflow: hidden;
+}
+
+.audio-recorder::before {
+  content: '';
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  right: 20px;
+  bottom: 20px;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 15px;
+  background: rgba(255,255,255,0.02);
+  backdrop-filter: blur(5px);
+}
+
+.status-bar {
+  width: 100%;
+  margin-bottom: 2rem;
+  text-align: center;
+  position: relative;
+  z-index: 2;
+}
+
+.connection-status {
+  padding: 0.75rem 1.5rem;
+  border-radius: 25px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  transition: all 0.3s ease;
+  display: inline-block;
+  position: relative;
+  overflow: hidden;
+}
+
+.connection-status::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.connection-status:hover::before {
+  left: 100%;
+}
+
+.connection-status.connected {
+  background: linear-gradient(45deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+  color: #ffffff;
+  border: 2px solid rgba(255,255,255,0.3);
+  text-shadow: 0 0 10px rgba(255,255,255,0.5);
+}
+
+.connection-status.disconnected {
+  background: linear-gradient(45deg, rgba(128,128,128,0.2), rgba(64,64,64,0.3));
+  color: #cccccc;
+  border: 2px solid rgba(128,128,128,0.4);
+  text-shadow: 0 0 10px rgba(128,128,128,0.3);
+}
+
+.recorder-controls {
+  margin-bottom: 2rem;
+  position: relative;
+  z-index: 2;
+}
+
+.mic-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 140px;
+  height: 140px;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #ffffff, #f0f0f0);
+  color: #000000;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    0 0 30px rgba(255,255,255,0.3),
+    inset 0 2px 4px rgba(255,255,255,0.8),
+    inset 0 -2px 4px rgba(0,0,0,0.1);
+  position: relative;
+  overflow: hidden;
+  font-weight: 900;
+}
+
+.mic-button::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(transparent, rgba(255,255,255,0.3), transparent);
+  animation: rotate 3s linear infinite;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.mic-button:hover::before {
+  opacity: 1;
+}
+
+@keyframes rotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.mic-button:hover:not(.disabled) {
+  transform: translateY(-5px) scale(1.05);
+  box-shadow: 
+    0 0 50px rgba(255,255,255,0.5),
+    inset 0 2px 4px rgba(255,255,255,0.9),
+    inset 0 -2px 4px rgba(0,0,0,0.1);
+}
+
+.mic-button:active:not(.disabled) {
+  transform: translateY(-2px) scale(1.02);
+}
+
+.mic-button.recording {
+  background: linear-gradient(145deg, #333333, #1a1a1a);
+  color: #ffffff;
+  animation: recordingPulse 2s ease-in-out infinite;
+  box-shadow: 
+    0 0 40px rgba(255,255,255,0.2),
+    inset 0 2px 4px rgba(255,255,255,0.1),
+    inset 0 -2px 4px rgba(0,0,0,0.3);
+}
+
+.mic-button.disabled {
+  background: linear-gradient(145deg, #666666, #444444);
+  color: #999999;
+  cursor: not-allowed;
+  opacity: 0.4;
+  transform: none !important;
+  box-shadow: 
+    0 0 15px rgba(255,255,255,0.1),
+    inset 0 1px 2px rgba(255,255,255,0.1),
+    inset 0 -1px 2px rgba(0,0,0,0.2);
+}
+
+.mic-icon {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+  animation: float 3s ease-in-out infinite;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+
+.recording-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  background: linear-gradient(45deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+  padding: 1rem 2rem;
+  border-radius: 30px;
+  backdrop-filter: blur(15px);
+  border: 1px solid rgba(255,255,255,0.2);
+  box-shadow: 
+    0 0 30px rgba(255,255,255,0.1),
+    inset 0 1px 2px rgba(255,255,255,0.2);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  position: relative;
+  z-index: 2;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pulse {
+  width: 8px;
+  height: 8px;
+  background: #ffffff;
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+  box-shadow: 0 0 10px rgba(255,255,255,0.5);
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 10px rgba(255,255,255,0.5);
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 0.6;
+    box-shadow: 0 0 20px rgba(255,255,255,0.8);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 10px rgba(255,255,255,0.5);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes recordingPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 
+      0 0 40px rgba(255,255,255,0.2),
+      inset 0 2px 4px rgba(255,255,255,0.1),
+      inset 0 -2px 4px rgba(0,0,0,0.3);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 
+      0 0 60px rgba(255,255,255,0.4),
+      inset 0 2px 4px rgba(255,255,255,0.2),
+      inset 0 -2px 4px rgba(0,0,0,0.3);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 
+      0 0 40px rgba(255,255,255,0.2),
+      inset 0 2px 4px rgba(255,255,255,0.1),
+      inset 0 -2px 4px rgba(0,0,0,0.3);
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .audio-recorder {
+    padding: 2rem 1rem;
+  }
+  
+  .mic-button {
+    width: 120px;
+    height: 120px;
+  }
+  
+  .mic-icon {
+    font-size: 2.5rem;
+  }
+  
+  .connection-status {
+    font-size: 0.75rem;
+    padding: 0.6rem 1.2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .audio-recorder {
+    padding: 1.5rem 1rem;
+  }
+  
+  .mic-button {
+    width: 100px;
+    height: 100px;
+  }
+  
+  .mic-icon {
+    font-size: 2rem;
+  }
+  
+  .connection-status {
+    font-size: 0.7rem;
+    padding: 0.5rem 1rem;
+    letter-spacing: 1px;
+  }
+  
+  .recording-indicator {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.8rem;
+  }
+}
