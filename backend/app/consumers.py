@@ -1,11 +1,13 @@
 import json
-import base64
-import tempfile
-import os
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 import logging
-from .stt import speech_to_text, generate_response
+from .stt import (
+    speech_to_text, 
+    generate_response,
+    speech_to_text_google,
+    generate_response_groq
+)
 
 logger = logging.getLogger(__name__)
 
@@ -109,35 +111,16 @@ class AudioConsumer(AsyncWebsocketConsumer):
     def convert_audio_to_text(self, audio_data):
         """Convert base64 audio data to text using speech recognition"""
         try:
-            # Decode base64 audio data
-            audio_bytes = base64.b64decode(audio_data)
-            
-            # Create temporary file for audio processing
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as temp_file:
-                temp_file.write(audio_bytes)
-                temp_file_path = temp_file.name
+            # Use the speech_to_text_google function which now handles WebM conversion
+            user_text = speech_to_text_google(audio_data)
+            print("Speech to Text: ", user_text)
 
-            try:
-                # Use the original base64 audio data directly with OpenAI Whisper
-                user_text = speech_to_text(audio_data)
-                print("Speech to Text: ", user_text)
-
-                # Generate response using OpenAI
-                llm_response = generate_response(user_text)
-                print("Response: ", llm_response)
-                    
-                return user_text, llm_response
+            # Generate response using gpt-oss-20b
+            llm_response = generate_response_groq(user_text)
+            print("Response: ", llm_response)
                 
-            except Exception as e:
-                logger.error(f"Error in speech to text conversion: {e}")
-                return "", ""
-            finally:
-                # Clean up temporary files
-                try:
-                    os.unlink(temp_file_path)
-                except:
-                    pass
-                    
+            return user_text, llm_response
+                
         except Exception as e:
-            logger.error(f"Error decoding audio data: {e}")
+            logger.error(f"Error in speech to text conversion: {e}")
             return "", ""
