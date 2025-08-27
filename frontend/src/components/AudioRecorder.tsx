@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Mic, MicOff, Wifi, WifiOff, AlertCircle } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 import './AudioRecorder.css';
 
 interface AudioRecorderProps {
@@ -13,6 +15,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('Disconnected');
+  const { accessToken } = useAuth();
   
   const wsRef = useRef<WebSocket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -20,16 +23,25 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   const chunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
-    connectWebSocket();
+    if (accessToken) {
+      connectWebSocket();
+    }
     
     return () => {
       disconnect();
     };
-  }, []);
+  }, [accessToken]);
 
   const connectWebSocket = () => {
     try {
-      wsRef.current = new WebSocket('ws://localhost:8000/ws/audio/');
+      if (!accessToken) {
+        setConnectionStatus('Authentication required');
+        onConnectionStatus('Authentication required');
+        return;
+      }
+
+      const wsUrl = `ws://localhost:8000/ws/audio/?token=${accessToken}`;
+      wsRef.current = new WebSocket(wsUrl);
       
       wsRef.current.onopen = () => {
         setIsConnected(true);
@@ -80,9 +92,9 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         onConnectionStatus('Disconnected');
         console.log('WebSocket disconnected');
         
-        // Attempt to reconnect after 3 seconds
+        // Attempt to reconnect after 3 seconds if we have a token
         setTimeout(() => {
-          if (!isConnected) {
+          if (!isConnected && accessToken) {
             connectWebSocket();
           }
         }, 3000);
@@ -212,12 +224,23 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     }
   };
 
+  const getStatusIcon = () => {
+    if (connectionStatus === 'Connected') {
+      return <Wifi size={16} className="status-icon connected" />;
+    } else if (connectionStatus === 'Authentication required') {
+      return <AlertCircle size={16} className="status-icon error" />;
+    } else {
+      return <WifiOff size={16} className="status-icon disconnected" />;
+    }
+  };
+
   return (
     <div className="audio-recorder">
       <div className="status-bar">
-        <span className={`connection-status ${isConnected ? 'connected' : 'disconnected'}`}>
-          {connectionStatus}
-        </span>
+        <div className={`connection-status ${isConnected ? 'connected' : 'disconnected'}`}>
+          {getStatusIcon()}
+          <span>{connectionStatus}</span>
+        </div>
       </div>
       
       <div className="recorder-controls">
@@ -225,9 +248,10 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
           className={`mic-button ${isRecording ? 'recording' : ''} ${!isConnected ? 'disabled' : ''}`}
           onClick={toggleRecording}
           disabled={!isConnected}
+          title={isRecording ? 'Stop recording' : 'Start recording'}
         >
           <div className="mic-icon">
-            {isRecording ? '🎤' : '🎤'}
+            {isRecording ? <MicOff size={24} /> : <Mic size={24} />}
           </div>
         </button>
       </div>

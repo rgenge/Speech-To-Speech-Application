@@ -51,16 +51,9 @@ class AudioConsumer(AsyncWebsocketConsumer):
                     await self.close(code=4001)
                     logger.warning("WebSocket connection rejected: Invalid token")
             else:
-                # No token provided - allow anonymous connection for now
-                await self.accept()
-                logger.info("WebSocket connection established (anonymous)")
-                
-                # Send confirmation message
-                await self.send(text_data=json.dumps({
-                    'type': 'connection_established',
-                    'message': 'WebSocket connected successfully (anonymous mode)',
-                    'user': None
-                }))
+                # No token provided - reject connection
+                await self.close(code=4003)
+                logger.warning("WebSocket connection rejected: No token provided")
                 
         except Exception as e:
             logger.error(f"Error during WebSocket connection: {str(e)}")
@@ -195,13 +188,8 @@ class AudioConsumer(AsyncWebsocketConsumer):
                 )
                 print(f"Conversation saved for user {self.user.email}: ", conversation)
             else:
-                # Save conversation without user for anonymous sessions
-                conversation = Conversation.objects.create(
-                    user=None, 
-                    user_text=user_text, 
-                    llm_response=llm_response
-                )
-                print("Anonymous conversation saved: ", conversation)
+                # No authenticated user - this shouldn't happen with required auth
+                print("Warning: No authenticated user for conversation")
             
             return user_text, llm_response
                 

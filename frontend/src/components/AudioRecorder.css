@@ -39,7 +39,9 @@
   text-transform: uppercase;
   letter-spacing: 2px;
   transition: all 0.3s ease;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   position: relative;
   overflow: hidden;
 }
@@ -71,6 +73,21 @@
   color: #cccccc;
   border: 2px solid rgba(128,128,128,0.4);
   text-shadow: 0 0 10px rgba(128,128,128,0.3);
+}
+
+.status-icon.connected {
+  color: #00ff88;
+  filter: drop-shadow(0 0 5px rgba(0, 255, 136, 0.5));
+}
+
+.status-icon.disconnected {
+  color: #ff4444;
+  filter: drop-shadow(0 0 5px rgba(255, 68, 68, 0.5));
+}
+
+.status-icon.error {
+  color: #ffaa00;
+  filter: drop-shadow(0 0 5px rgba(255, 170, 0, 0.5));
 }
 
 .recorder-controls {

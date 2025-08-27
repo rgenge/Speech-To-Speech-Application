@@ -102,6 +102,25 @@ class LoginView(APIView):
                 'error': 'An error occurred during login'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        try:
+            refresh_token = request.data.get('refresh')
+            if refresh_token:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+            
+            return Response({
+                'message': 'Logout successful'
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': 'Logout failed'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
 class UserConversationsView(APIView):
     """Get user conversations - requires authentication"""
     permission_classes = [IsAuthenticated]

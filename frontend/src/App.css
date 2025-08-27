@@ -23,13 +23,60 @@ body {
 }
 
 .app-header {
-  text-align: center;
-  padding: 1rem 0 0.5rem 0;
+  padding: 1rem 2rem 0.5rem 2rem;
   background: linear-gradient(45deg, rgba(255,255,255,0.1), rgba(0,0,0,0.8));
   border-bottom: 2px solid rgba(255,255,255,0.1);
   backdrop-filter: blur(10px);
   position: relative;
   overflow: hidden;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.app-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.app-icon {
+  color: #ffffff;
+  filter: drop-shadow(0 0 10px rgba(255,255,255,0.5));
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.9rem;
+  color: rgba(255,255,255,0.8);
+}
+
+.logout-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.logout-button:hover {
+  background: rgba(255,255,255,0.2);
+  border-color: rgba(255,255,255,0.5);
+  transform: translateY(-1px);
 }
 
 .app-header::before {
