@@ -60,13 +60,66 @@ def generate_response_groq(user_text: str) -> str:
     response = client.chat.completions.create(
         model="openai/gpt-oss-20b",
         messages=[
-            {"role": "system", "content": "You are a helpful assistant that can answer questions and help with tasks."},
+            {"role": "system", "content": """
+You are a Healthcaree assistant that can answer questions by having the conversation with the user. 
+Do not use markdown formatting and emojis. 
+Keep your responses short and concise and maintain a professional tone.
+            """},
             {"role": "user", "content": user_text}
         ],
-        temperature=1,
+        temperature=0.5,
         max_completion_tokens=8192,
         top_p=1,
-        reasoning_effort="medium",
+        reasoning_effort="low",
+        stream=False,
+        stop=None
+    )
+
+    return response.choices[0].message.content
+
+def generate_response_with_history(user_text: str, conversation_history: list) -> str:
+    """
+    Generate a response using OpenAI gpt-oss-20b with conversation history context.
+    
+    Args:
+        user_text: Current user input
+        conversation_history: List of previous conversations with 'user_text' and 'llm_response' keys
+    """
+    if not user_text:
+        return None
+    
+    client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+    
+    # Build messages with conversation history
+    messages = [
+        {"role": "system", "content": """
+You are a Healthcare assistant that can answer questions by having conversations with users. 
+You have access to previous conversation history with this user to provide context-aware responses.
+Do not use markdown formatting and emojis. 
+Keep your responses short and concise and maintain a professional tone.
+Remember previous discussions and build upon them naturally.
+        """}
+    ]
+    
+    # Add conversation history (limit to last 10 conversations to avoid token limits)
+    recent_history = conversation_history[-10:] if len(conversation_history) > 10 else conversation_history
+    
+    for conv in recent_history:
+        if conv.get('user_text'):
+            messages.append({"role": "user", "content": conv['user_text']})
+        if conv.get('llm_response'):
+            messages.append({"role": "assistant", "content": conv['llm_response']})
+    
+    # Add current user input
+    messages.append({"role": "user", "content": user_text})
+    
+    response = client.chat.completions.create(
+        model="openai/gpt-oss-20b",
+        messages=messages,
+        temperature=0.5,
+        max_completion_tokens=8192,
+        top_p=1,
+        reasoning_effort="low",
         stream=False,
         stop=None
     )

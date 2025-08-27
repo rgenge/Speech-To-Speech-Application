@@ -2,26 +2,69 @@ import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 import logging
+from urllib.parse import parse_qs
+from .models import User, Conversation
 from .stt import (
     speech_to_text, 
     generate_response,
     speech_to_text_google,
-    generate_response_groq
+    generate_response_groq,
+    generate_response_with_history
 )
+from .auth_utils import get_user_from_token
 
 logger = logging.getLogger(__name__)
 
 class AudioConsumer(AsyncWebsocketConsumer):
-    async def connect(self):
-        """Accept WebSocket connection"""
-        await self.accept()
-        logger.info("WebSocket connection established")
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = None
         
-        # Send confirmation message
-        await self.send(text_data=json.dumps({
-            'type': 'connection_established',
-            'message': 'WebSocket connected successfully'
-        }))
+    async def connect(self):
+        """Accept WebSocket connection and authenticate user"""
+        try:
+            # Get token from query string
+            query_string = self.scope['query_string'].decode()
+            query_params = parse_qs(query_string)
+            token = query_params.get('token', [None])[0]
+            
+            if token:
+                # Authenticate user with token
+                self.user = await self.get_user_from_token_async(token)
+                
+                if self.user:
+                    await self.accept()
+                    logger.info(f"WebSocket connection established for user: {self.user.email}")
+                    
+                    # Send confirmation message
+                    await self.send(text_data=json.dumps({
+                        'type': 'connection_established',
+                        'message': 'WebSocket connected successfully',
+                        'user': {
+                            'id': self.user.id,
+                            'name': self.user.name,
+                            'email': self.user.email
+                        }
+                    }))
+                else:
+                    # Invalid token
+                    await self.close(code=4001)
+                    logger.warning("WebSocket connection rejected: Invalid token")
+            else:
+                # No token provided - allow anonymous connection for now
+                await self.accept()
+                logger.info("WebSocket connection established (anonymous)")
+                
+                # Send confirmation message
+                await self.send(text_data=json.dumps({
+                    'type': 'connection_established',
+                    'message': 'WebSocket connected successfully (anonymous mode)',
+                    'user': None
+                }))
+                
+        except Exception as e:
+            logger.error(f"Error during WebSocket connection: {str(e)}")
+            await self.close(code=4000)
 
     async def disconnect(self, close_code):
         """Handle WebSocket disconnection"""
@@ -108,6 +151,11 @@ class AudioConsumer(AsyncWebsocketConsumer):
             }))
 
     @database_sync_to_async
+    def get_user_from_token_async(self, token):
+        """Async wrapper for token authentication"""
+        return get_user_from_token(token)
+    
+    @database_sync_to_async
     def convert_audio_to_text(self, audio_data):
         """Convert base64 audio data to text using speech recognition"""
         try:
@@ -115,10 +163,46 @@ class AudioConsumer(AsyncWebsocketConsumer):
             user_text = speech_to_text_google(audio_data)
             print("Speech to Text: ", user_text)
 
-            # Generate response using gpt-oss-20b
-            llm_response = generate_response_groq(user_text)
-            print("Response: ", llm_response)
+            # Get conversation history for authenticated users
+            conversation_history = []
+            if self.user:
+                # Get recent conversations for context (last 10)
+                recent_conversations = Conversation.objects.filter(
+                    user=self.user
+                ).order_by('-created_at')[:10]
                 
+                # Convert to list format for the LLM function
+                conversation_history = [{
+                    'user_text': conv.user_text,
+                    'llm_response': conv.llm_response
+                } for conv in reversed(recent_conversations)]
+                
+                # Generate response with conversation history context
+                llm_response = generate_response_with_history(user_text, conversation_history)
+                print(f"Response with history for user {self.user.email}: ", llm_response)
+            else:
+                # For anonymous users, use simple response without history
+                llm_response = generate_response_groq(user_text)
+                print("Response (anonymous): ", llm_response)
+
+            # Save the conversation to the database with authenticated user
+            conversation = None
+            if self.user:
+                conversation = Conversation.objects.create(
+                    user=self.user, 
+                    user_text=user_text, 
+                    llm_response=llm_response
+                )
+                print(f"Conversation saved for user {self.user.email}: ", conversation)
+            else:
+                # Save conversation without user for anonymous sessions
+                conversation = Conversation.objects.create(
+                    user=None, 
+                    user_text=user_text, 
+                    llm_response=llm_response
+                )
+                print("Anonymous conversation saved: ", conversation)
+            
             return user_text, llm_response
                 
         except Exception as e:
