@@ -3,8 +3,9 @@
 .DS_Store
 .venv/
 backend/db.sqlite3
-
-
+backend/app/__pycache__/*
+backend/app/migrations/*
+backend/main/__pycache__/*
 # Logs
 frontend/logs
 frontend/*.log
@@ -29,3 +30,4 @@ frontend/*.ntvs*
 frontend/*.njsproj
 frontend/*.sln
 frontend/*.sw?
+
