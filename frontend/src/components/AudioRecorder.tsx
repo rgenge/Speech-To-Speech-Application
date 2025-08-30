@@ -8,15 +8,15 @@ interface AudioRecorderProps {
   onConnectionStatus: (status: string) => void;
 }
 
-const AudioRecorder: React.FC<AudioRecorderProps> = ({ 
-  onNewMessage, 
-  onConnectionStatus 
+const AudioRecorder: React.FC<AudioRecorderProps> = ({
+  onNewMessage,
+  onConnectionStatus
 }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('Disconnected');
   const { accessToken } = useAuth();
-  
+
   const wsRef = useRef<WebSocket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -26,7 +26,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     if (accessToken) {
       connectWebSocket();
     }
-    
+
     return () => {
       disconnect();
     };
@@ -39,10 +39,10 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         onConnectionStatus('Authentication required');
         return;
       }
-
-      const wsUrl = `ws://localhost:8000/ws/audio/?token=${accessToken}`;
+      const backendIp = import.meta.env.VITE_BACKEND_IP;
+      const wsUrl = `ws://${backendIp}/ws/audio/?token=${accessToken}`;
       wsRef.current = new WebSocket(wsUrl);
-      
+
       wsRef.current.onopen = () => {
         setIsConnected(true);
         setConnectionStatus('Connected');
@@ -53,7 +53,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       wsRef.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          
+
           switch (data.type) {
             case 'connection_established':
               console.log('Connection established:', data.message);
@@ -91,7 +91,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         setConnectionStatus('Disconnected');
         onConnectionStatus('Disconnected');
         console.log('WebSocket disconnected');
-        
+
         // Attempt to reconnect after 3 seconds if we have a token
         setTimeout(() => {
           if (!isConnected && accessToken) {
@@ -110,11 +110,11 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     if (mediaRecorderRef.current && isRecording) {
       stopRecording();
     }
-    
+
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
     }
-    
+
     if (wsRef.current) {
       wsRef.current.close();
     }
@@ -128,14 +128,14 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       }
 
       // Request microphone access
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-        } 
+        }
       });
-      
+
       streamRef.current = stream;
       chunksRef.current = [];
 
@@ -143,7 +143,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: 'audio/webm;codecs=opus'
       });
-      
+
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
@@ -242,7 +242,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
           <span>{connectionStatus}</span>
         </div>
       </div>
-      
+
       <div className="recorder-controls">
         <button
           className={`mic-button ${isRecording ? 'recording' : ''} ${!isConnected ? 'disabled' : ''}`}
@@ -255,7 +255,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
           </div>
         </button>
       </div>
-      
+
       {isRecording && (
         <div className="recording-indicator">
           <div className="pulse"></div>
