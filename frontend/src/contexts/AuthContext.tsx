@@ -30,8 +30,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const API_BASE_URL = 'http://localhost:8000/api';
+  const backendIp = import.meta.env.VITE_BACKEND_IP;
+  const API_BASE_URL = `http://${backendIp}/api`;
 
   // Check for stored tokens on mount
   useEffect(() => {

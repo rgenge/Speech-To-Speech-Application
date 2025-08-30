@@ -17,8 +17,8 @@ interface TranscriptionDisplayProps {
   onStopVoice: () => void;
 }
 
-const TranscriptionDisplay: React.FC<TranscriptionDisplayProps> = ({ 
-  chatMessages, 
+const TranscriptionDisplay: React.FC<TranscriptionDisplayProps> = ({
+  chatMessages,
   connectionStatus,
   isVoicePlaying,
   onStopVoice
@@ -41,10 +41,10 @@ const TranscriptionDisplay: React.FC<TranscriptionDisplayProps> = ({
 
   const loadConversationHistory = async () => {
     if (!accessToken) return;
-
+	const backendIp = import.meta.env.BACKEND_IP;
     setIsLoadingHistory(true);
     try {
-      const response = await fetch('http://localhost:8000/api/conversations/', {
+      const response = await fetch(`http://${backendIp}/api/conversations/`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
@@ -74,10 +74,10 @@ const TranscriptionDisplay: React.FC<TranscriptionDisplayProps> = ({
     if (!accessToken || !window.confirm('Are you sure you want to clear all conversations? This action cannot be undone.')) {
       return;
     }
-
+	const backendIp = import.meta.env.VITE_BACKEND_IP;
     setIsClearingConversations(true);
     try {
-      const response = await fetch('http://localhost:8000/api/conversations/clear/', {
+      const response = await fetch(`http://${backendIp}/api/conversations/clear/`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -113,10 +113,10 @@ const TranscriptionDisplay: React.FC<TranscriptionDisplayProps> = ({
   const downloadChat = () => {
     // Combine current session messages and history for download
     const allMessages = [...conversationHistory, ...chatMessages];
-    const allText = allMessages.map(message => 
+    const allText = allMessages.map(message =>
       `[${formatTimestamp(message.timestamp)}]\nUser: ${message.userText}\nAssistant: ${message.llmResponse}\n`
     ).join('\n');
-    
+
     const blob = new Blob([allText], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -140,7 +140,7 @@ const TranscriptionDisplay: React.FC<TranscriptionDisplayProps> = ({
         </div>
         <div className="transcription-controls">
           {isVoicePlaying && (
-            <button 
+            <button
               className="control-btn voice-control-btn"
               onClick={onStopVoice}
               title="Stop voice playback"
@@ -149,7 +149,7 @@ const TranscriptionDisplay: React.FC<TranscriptionDisplayProps> = ({
               Stop Voice
             </button>
           )}
-          <button 
+          <button
             className="control-btn refresh-btn"
             onClick={loadConversationHistory}
             disabled={isLoadingHistory}
@@ -158,7 +158,7 @@ const TranscriptionDisplay: React.FC<TranscriptionDisplayProps> = ({
             <RefreshCw size={16} className={isLoadingHistory ? 'spinning' : ''} />
             Refresh
           </button>
-          <button 
+          <button
             className="control-btn download-btn"
             onClick={downloadChat}
             disabled={allMessages.length === 0}
@@ -167,7 +167,7 @@ const TranscriptionDisplay: React.FC<TranscriptionDisplayProps> = ({
             <Download size={16} />
             Download
           </button>
-          <button 
+          <button
             className="control-btn clear-btn"
             onClick={clearConversations}
             disabled={isClearingConversations || conversationHistory.length === 0}
@@ -202,7 +202,7 @@ const TranscriptionDisplay: React.FC<TranscriptionDisplayProps> = ({
                     <div className="message-meta">
                       <span className="sender-name">You</span>
                       <span className="timestamp">{formatTimestamp(message.timestamp)}</span>
-                      <button 
+                      <button
                         className="copy-btn"
                         onClick={() => copyToClipboard(message.userText)}
                         title="Copy user message"
@@ -225,14 +225,14 @@ const TranscriptionDisplay: React.FC<TranscriptionDisplayProps> = ({
                         <span className="sender-name">Health Assistant</span>
                         <span className="timestamp">{formatTimestamp(message.timestamp)}</span>
                         <div className="message-actions">
-                          <button 
+                          <button
                             className="copy-btn"
                             onClick={() => copyToClipboard(message.llmResponse)}
                             title="Copy AI response"
                           >
                             <Copy size={14} />
                           </button>
-                          <button 
+                          <button
                             className="voice-btn"
                             onClick={() => {
                               if ('speechSynthesis' in window) {
