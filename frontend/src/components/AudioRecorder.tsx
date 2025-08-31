@@ -21,23 +21,20 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-
-  // Refs para detecção de silêncio
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const isMonitoringRef = useRef<boolean>(false);
 
-  // Configurações de detecção de silêncio
   const SILENCE_THRESHOLD = 0.01;
-  const SILENCE_DURATION = 2000; // 2 segundos
+  const SILENCE_DURATION = 2000;
 
-  // Usar useCallback para garantir que a função seja estável
+  // Callback to guarantee stable function
   const stopRecording = useCallback(() => {
     console.log('stopRecording chamado, isRecording:', isRecording);
 
-    // Parar monitoramento de silêncio primeiro
+    // Silence monitoring flag
     isMonitoringRef.current = false;
 
     if (silenceTimeoutRef.current) {
@@ -50,16 +47,16 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       animationFrameRef.current = null;
     }
 
-    // Parar o MediaRecorder se estiver gravando
+    // Stop the MediaRecorder if it's recording
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      console.log('Parando MediaRecorder...');
+      console.log('Stopping MediaRecorder...');
       mediaRecorderRef.current.stop();
     }
 
-    // Atualizar estado
+    // Update state
     setIsRecording(false);
 
-    // Enviar sinal de parada via WebSocket
+    // Send stop signal using WebSocket
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
         type: 'stop_recording',
@@ -67,7 +64,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       }));
     }
 
-    // Parar todas as tracks do stream
+    // Stop all tracks of the stream
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => {
         track.stop();
@@ -76,20 +73,18 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       streamRef.current = null;
     }
 
-    // Limpar contexto de áudio
+    // Clean Audio Context
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
       audioContextRef.current.close().then(() => {
-        console.log('AudioContext fechado');
+        console.log('AudioContext closed');
       });
       audioContextRef.current = null;
     }
 
     analyserRef.current = null;
 
-    console.log('Gravação totalmente parada');
-  }, [isRecording]); // Dependência do isRecording
+  }, [isRecording]);
 
-  // Função para detectar silêncio com referência estável
   const detectSilence = useCallback(() => {
     if (!analyserRef.current || !isMonitoringRef.current) {
       return;
@@ -99,7 +94,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     const dataArray = new Uint8Array(bufferLength);
     analyserRef.current.getByteTimeDomainData(dataArray);
 
-    // Calcular o nível de volume RMS
+    // Calculate RMS level
     let sum = 0;
     for (let i = 0; i < bufferLength; i++) {
       const sample = (dataArray[i] - 128) / 128;
@@ -107,39 +102,37 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     }
     const rms = Math.sqrt(sum / bufferLength);
 
-    // Debug do volume
+    // Volume debug
     if (Math.random() < 0.01) { // Log apenas 1% das vezes para não spam
       console.log('Volume RMS:', rms.toFixed(4));
     }
 
-    // Se o volume está abaixo do limiar (silêncio)
+    // If volume is down
     if (rms < SILENCE_THRESHOLD) {
       if (!silenceTimeoutRef.current) {
-        console.log('Iniciando contagem de silêncio...');
+        console.log('Checking silence...');
         silenceTimeoutRef.current = setTimeout(() => {
-          console.log('Silêncio detectado por 2 segundos! Parando gravação...');
+          console.log('Silence detected for 2 seconds! Stopping recording...');
           stopRecording();
         }, SILENCE_DURATION);
       }
     } else {
-      // Se há som, cancelar o timeout de silêncio
+      // If there's sound, cancel the silence timeout
       if (silenceTimeoutRef.current) {
-        console.log('Som detectado, cancelando timeout de silêncio');
         clearTimeout(silenceTimeoutRef.current);
         silenceTimeoutRef.current = null;
       }
     }
 
-    // Continuar monitorando se ainda estiver ativo
     if (isMonitoringRef.current) {
       animationFrameRef.current = requestAnimationFrame(detectSilence);
     }
   }, [stopRecording, SILENCE_THRESHOLD, SILENCE_DURATION]);
 
-  // Função para inicializar detecção de silêncio
+  // Function to initialize silence detection
   const startSilenceDetection = useCallback((stream: MediaStream) => {
     try {
-      console.log('Iniciando detecção de silêncio...');
+      console.log('Starting silence detection...');
 
       // Criar novo AudioContext
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -153,9 +146,8 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       isMonitoringRef.current = true;
       detectSilence();
 
-      console.log('Detecção de silêncio iniciada com sucesso');
     } catch (error) {
-      console.error('Erro ao inicializar detecção de silêncio:', error);
+      console.error('Error initializing silence detection:', error);
     }
   }, [detectSilence]);
 
@@ -272,13 +264,11 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         return;
       }
 
-      console.log('Iniciando gravação...');
-
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
-          noiseSuppression: false, // Desabilitar para melhor detecção de silêncio
-          autoGainControl: false,  // Desabilitar para melhor detecção de silêncio
+          noiseSuppression: true,
+          autoGainControl: true,
         }
       });
 
@@ -298,7 +288,6 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       };
 
       mediaRecorder.onstop = () => {
-        console.log('MediaRecorder parado, enviando dados...');
         const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
         sendAudioData(audioBlob);
       };
@@ -307,10 +296,10 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         console.error('MediaRecorder error:', event);
       };
 
-      mediaRecorder.start(100); // Coletar dados a cada 100ms
+      mediaRecorder.start(100); // Collect data every 100ms
       setIsRecording(true);
 
-      // Iniciar detecção de silêncio APÓS o MediaRecorder iniciar
+      // Start silence detection AFTER MediaRecorder starts
       setTimeout(() => {
         startSilenceDetection(stream);
       }, 100);
@@ -322,7 +311,6 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         }));
       }
 
-      console.log('Gravação iniciada com sucesso');
 
     } catch (error) {
       console.error('Error starting recording:', error);
@@ -344,7 +332,6 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
             timestamp: Date.now()
           }));
 
-          console.log('Dados de áudio enviados');
         };
         reader.readAsDataURL(audioBlob);
       }
@@ -354,7 +341,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   };
 
   const toggleRecording = () => {
-    console.log('Toggle recording, estado atual:', isRecording);
+    console.log('Toggle recording, current state:', isRecording);
     if (isRecording) {
       stopRecording();
     } else {
