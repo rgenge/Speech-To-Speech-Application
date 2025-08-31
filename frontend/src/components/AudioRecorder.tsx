@@ -102,11 +102,6 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     }
     const rms = Math.sqrt(sum / bufferLength);
 
-    // Volume debug
-    if (Math.random() < 0.01) { // Log apenas 1% das vezes para não spam
-      console.log('Volume RMS:', rms.toFixed(4));
-    }
-
     // If volume is down
     if (rms < SILENCE_THRESHOLD) {
       if (!silenceTimeoutRef.current) {
@@ -161,7 +156,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     };
   }, [accessToken]);
 
-  // Cleanup quando o componente for desmontado
+  // Cleanup when component unmounts
   useEffect(() => {
     return () => {
       isMonitoringRef.current = false;
