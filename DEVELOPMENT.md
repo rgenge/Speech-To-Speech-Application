@@ -34,6 +34,6 @@ Create a `.env` file in the root directory with the following variables:
 ```env
 
 GROQ_API_KEY=your-secret-key
-DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,your-backend-ip
-VITE_BACKEND_IP=your-backend-ip
+DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,https://your-backend-ip
+VITE_BACKEND_IP=https://your-backend-ip
 
