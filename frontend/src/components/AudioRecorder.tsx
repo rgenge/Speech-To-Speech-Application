@@ -176,8 +176,15 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         onConnectionStatus('Authentication required');
         return;
       }
-      const backendIp = import.meta.env.VITE_BACKEND_IP;
-      const wsUrl = `ws://${backendIp}/ws/audio/?token=${accessToken}`;
+    const backendRaw = import.meta.env.VITE_BACKEND_IP;
+
+    if (!backendRaw) {
+        throw new Error('VITE_BACKEND_IP is not set');
+    }
+
+    const backendClean = backendRaw.trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    const protocol = backendRaw.trim().toLowerCase().startsWith('https://') ? 'wss://' : 'ws://';
+    const wsUrl = `${protocol}${backendClean}/ws/audio/?token=${accessToken}`;
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = () => {
