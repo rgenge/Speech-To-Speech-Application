@@ -77,7 +77,7 @@ Keep your responses short and concise and maintain a professional tone.
 
     return response.choices[0].message.content
 
-def generate_response_with_history(user_text: str, conversation_history: list) -> str:
+def generate_response_with_history(user_text: str, conversation_history: list, user_name: str) -> str:
     """
     Generate a response using OpenAI gpt-oss-20b with conversation history context.
     
@@ -89,16 +89,22 @@ def generate_response_with_history(user_text: str, conversation_history: list) -
         return None
     
     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-    
+
+    prompt = """
+You are a healthcare assistant that provides clear, accurate, and concise answers. The user’s name is {user_name}.
+
+Guidelines:
+- Use plain text only, without markdown, special characters, or symbols.
+- Reply in the same language the user is using.
+- Keep responses focused, direct, and professional.
+- Remember previous discussions and build upon them naturally.
+"""
+
+    formatted_prompt = prompt.format(user_name=user_name)
+
     # Build messages with conversation history
     messages = [
-        {"role": "system", "content": """
-You are a Healthcare assistant that can answer questions by having conversations with users. 
-You have access to previous conversation history with this user to provide context-aware responses.
-Do not use markdown formatting and emojis. 
-Keep your responses short and concise and maintain a professional tone.
-Remember previous discussions and build upon them naturally.
-        """}
+        {"role": "system", "content": formatted_prompt}
     ]
     
     # Add conversation history (limit to last 10 conversations to avoid token limits)

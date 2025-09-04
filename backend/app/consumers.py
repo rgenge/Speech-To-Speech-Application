@@ -171,11 +171,11 @@ class AudioConsumer(AsyncWebsocketConsumer):
                 } for conv in reversed(recent_conversations)]
                 
                 # Generate response with conversation history context
-                llm_response = generate_response_with_history(user_text, conversation_history)
+                llm_response = generate_response_with_history(user_text, conversation_history, self.user.name)
                 print(f"Response with history for user {self.user.email}: ", llm_response)
             else:
                 # For anonymous users, use simple response without history
-                llm_response = generate_response_groq(user_text)
+                llm_response = generate_response_groq(user_text, self.user.name)
                 print("Response (anonymous): ", llm_response)
 
             # Save the conversation to the database with authenticated user
