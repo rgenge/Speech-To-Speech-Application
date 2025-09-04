@@ -15,7 +15,7 @@ def speech_to_text(audio_base64: str) -> str:
     """
     if not audio_base64:
         return None
-    
+
     # Decode base64 to bytes
     audio_bytes = base64.b64decode(audio_base64)
 
@@ -28,7 +28,7 @@ def speech_to_text(audio_base64: str) -> str:
         model="whisper-1",
         file=audio_file
     )
-    
+
     return transcript.text
 
 def generate_response(user_text: str) -> str:
@@ -37,7 +37,7 @@ def generate_response(user_text: str) -> str:
     """
     if not user_text:
         return None
-    
+
     response = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -49,22 +49,38 @@ def generate_response(user_text: str) -> str:
     return response.choices[0].message.content
 
 
-def generate_response_groq(user_text: str) -> str:
+def generate_response_groq(user_text: str, user) -> str:
     """
     Generate a response using OpenAI gpt-oss-20b.
     """
     if not user_text:
         return None
-    
+
     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
     response = client.chat.completions.create(
         model="openai/gpt-oss-20b",
         messages=[
-            {"role": "system", "content": """
-You are a Healthcaree assistant that can answer questions by having the conversation with the user. 
-Do not use markdown formatting and emojis. 
-Keep your responses short and concise and maintain a professional tone.
-            """},
+                   {
+  "role": "system",
+  "content": f"""
+Forget past discussions.
+Answer in English.
+You are an assistant that should answer questions based primarily on the
+information in {user.profile}.
+The {user.profile} follows a key-value structure such as: name: John, age: 29,
+Social Number: 1929101, Address: Chicago.
+When the user asks something, first check {user.profile} to find the answer.
+If the information is not there, only then rely on general knowledge or
+external sources.
+Do not output the entire {user.profile}, only the relevant value of the asked key, do not repeat the key
+If asked about personal details (like name, age, address, social number),
+always use {user.profile} value to answer, not the key.
+Do not rely on old memory or previous conversation history.
+Do not use markdown formatting or emojis.
+Keep answers short, concise, and professional.
+Respond naturally without referencing past discussions.
+"""
+},
             {"role": "user", "content": user_text}
         ],
         temperature=0.5,
@@ -77,42 +93,56 @@ Keep your responses short and concise and maintain a professional tone.
 
     return response.choices[0].message.content
 
-def generate_response_with_history(user_text: str, conversation_history: list) -> str:
+def generate_response_with_history(user_text: str, conversation_history: list, user) -> str:
     """
     Generate a response using OpenAI gpt-oss-20b with conversation history context.
-    
+
     Args:
         user_text: Current user input
         conversation_history: List of previous conversations with 'user_text' and 'llm_response' keys
     """
     if not user_text:
         return None
-    
     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-    
+
     # Build messages with conversation history
     messages = [
-        {"role": "system", "content": """
-You are a Healthcare assistant that can answer questions by having conversations with users. 
-You have access to previous conversation history with this user to provide context-aware responses.
-Do not use markdown formatting and emojis. 
-Keep your responses short and concise and maintain a professional tone.
-Remember previous discussions and build upon them naturally.
-        """}
+       {
+  "role": "system",
+  "content": f"""
+Forget past discussions.
+Answer in English.
+You are an assistant that should answer questions based primarily on the
+information in {user.profile}.
+The {user.profile} follows a key-value structure such as: name: John, age: 29,
+Social Number: 1929101, Address: Chicago.
+When the user asks something, first check {user.profile} to find the answer.
+If the information is not there, only then rely on general knowledge or
+external sources.
+Do not output the entire {user.profile}, only the relevant value of the asked key, do not repeat the key
+If asked about personal details (like name, age, address, social number),
+always use {user.profile} value to answer, not the key.
+Do not rely on old memory or previous conversation history.
+Do not use markdown formatting or emojis.
+Keep answers short, concise, and professional.
+Respond naturally without referencing past discussions.
+"""
+}
+
     ]
-    
+
     # Add conversation history (limit to last 10 conversations to avoid token limits)
     recent_history = conversation_history[-10:] if len(conversation_history) > 10 else conversation_history
-    
+
     for conv in recent_history:
         if conv.get('user_text'):
             messages.append({"role": "user", "content": conv['user_text']})
         if conv.get('llm_response'):
             messages.append({"role": "assistant", "content": conv['llm_response']})
-    
+
     # Add current user input
     messages.append({"role": "user", "content": user_text})
-    
+
     response = client.chat.completions.create(
         model="openai/gpt-oss-20b",
         messages=messages,
@@ -140,7 +170,7 @@ def speech_to_text_google(audio_base64: str) -> str:
     # Create temporary files for processing
     temp_input_file = None
     temp_wav_file = None
-    
+
     try:
         # Save the original audio (likely WebM) to a temporary file
         with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as temp_input:
@@ -149,11 +179,11 @@ def speech_to_text_google(audio_base64: str) -> str:
 
         # Convert WebM to WAV using pydub
         audio_segment = AudioSegment.from_file(temp_input_file, format="webm")
-        
+
         # Create temporary WAV file
         with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_wav:
             temp_wav_file = temp_wav.name
-        
+
         # Export as WAV
         audio_segment.export(temp_wav_file, format="wav")
 
@@ -165,7 +195,7 @@ def speech_to_text_google(audio_base64: str) -> str:
         # Use free Google Web Speech API
         text = recognizer.recognize_google(audio)
         return text
-        
+
     except sr.UnknownValueError:
         return "Could not understand audio"
     except sr.RequestError as e:

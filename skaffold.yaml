@@ -1,0 +1,19 @@
+apiVersion: skaffold/v4beta6
+kind: Config
+metadata:
+  name: django-backend
+build:
+  artifacts:
+    - image: sa-saopaulo-1.ocir.io/groxpe62dmul/django-backend
+      context: .
+      docker:
+        dockerfile: backend/Dockerfile
+  tagPolicy:
+    sha256: {}
+  platforms: ["linux/amd64"]
+  local:
+    push: true
+deploy:
+  kubectl:
+    remoteManifests:
+      - k8s/deployments.yaml

@@ -5,7 +5,7 @@ import logging
 from urllib.parse import parse_qs
 from .models import User, Conversation
 from .stt import (
-    speech_to_text, 
+    speech_to_text,
     generate_response,
     speech_to_text_google,
     generate_response_groq,
@@ -19,7 +19,7 @@ class AudioConsumer(AsyncWebsocketConsumer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.user = None
-        
+
     async def connect(self):
         """Accept WebSocket connection and authenticate user"""
         try:
@@ -27,15 +27,15 @@ class AudioConsumer(AsyncWebsocketConsumer):
             query_string = self.scope['query_string'].decode()
             query_params = parse_qs(query_string)
             token = query_params.get('token', [None])[0]
-            
+
             if token:
                 # Authenticate user with token
                 self.user = await self.get_user_from_token_async(token)
-                
+
                 if self.user:
                     await self.accept()
                     logger.info(f"WebSocket connection established for user: {self.user.email}")
-                    
+
                     # Send confirmation message
                     await self.send(text_data=json.dumps({
                         'type': 'connection_established',
@@ -54,7 +54,7 @@ class AudioConsumer(AsyncWebsocketConsumer):
                 # No token provided - reject connection
                 await self.close(code=4003)
                 logger.warning("WebSocket connection rejected: No token provided")
-                
+
         except Exception as e:
             logger.error(f"Error during WebSocket connection: {str(e)}")
             await self.close(code=4000)
@@ -68,7 +68,7 @@ class AudioConsumer(AsyncWebsocketConsumer):
         try:
             data = json.loads(text_data)
             message_type = data.get('type')
-            
+
             if message_type == 'audio_data':
                 await self.handle_audio_data(data)
             elif message_type == 'start_recording':
@@ -80,7 +80,7 @@ class AudioConsumer(AsyncWebsocketConsumer):
                     'type': 'error',
                     'message': f'Unknown message type: {message_type}'
                 }))
-                
+
         except json.JSONDecodeError:
             await self.send(text_data=json.dumps({
                 'type': 'error',
@@ -120,7 +120,7 @@ class AudioConsumer(AsyncWebsocketConsumer):
 
             # Convert audio to text
             user_text, llm_response = await self.convert_audio_to_text(audio_data)
-            
+
             if user_text:
                 await self.send(text_data=json.dumps({
                     'type': 'transcription',
@@ -135,7 +135,7 @@ class AudioConsumer(AsyncWebsocketConsumer):
                     'llm_response': '',
                     'message': 'No speech detected in audio'
                 }))
-                
+
         except Exception as e:
             logger.error(f"Error processing audio: {str(e)}")
             await self.send(text_data=json.dumps({
@@ -147,7 +147,7 @@ class AudioConsumer(AsyncWebsocketConsumer):
     def get_user_from_token_async(self, token):
         """Async wrapper for token authentication"""
         return get_user_from_token(token)
-    
+
     @database_sync_to_async
     def convert_audio_to_text(self, audio_data):
         """Convert base64 audio data to text using speech recognition"""
@@ -163,15 +163,15 @@ class AudioConsumer(AsyncWebsocketConsumer):
                 recent_conversations = Conversation.objects.filter(
                     user=self.user
                 ).order_by('-created_at')[:10]
-                
+
                 # Convert to list format for the LLM function
                 conversation_history = [{
                     'user_text': conv.user_text,
                     'llm_response': conv.llm_response
                 } for conv in reversed(recent_conversations)]
-                
+
                 # Generate response with conversation history context
-                llm_response = generate_response_with_history(user_text, conversation_history)
+                llm_response = generate_response_with_history(user_text, conversation_history, self.user)
                 print(f"Response with history for user {self.user.email}: ", llm_response)
             else:
                 # For anonymous users, use simple response without history
@@ -182,17 +182,17 @@ class AudioConsumer(AsyncWebsocketConsumer):
             conversation = None
             if self.user:
                 conversation = Conversation.objects.create(
-                    user=self.user, 
-                    user_text=user_text, 
+                    user=self.user,
+                    user_text=user_text,
                     llm_response=llm_response
                 )
                 print(f"Conversation saved for user {self.user.email}: ", conversation)
             else:
                 # No authenticated user - this shouldn't happen with required auth
                 print("Warning: No authenticated user for conversation")
-            
+
             return user_text, llm_response
-                
+
         except Exception as e:
             logger.error(f"Error in speech to text conversion: {e}")
             return "", ""

@@ -45,7 +45,7 @@ hyperlink==21.0.0
 idna==3.10
 incremental==24.7.2
 ipykernel==6.30.1
-ipython==9.4.0
+ipython==8.37.0
 ipython-pygments-lexers==1.1.1
 jedi==0.19.2
 jiter==0.10.0

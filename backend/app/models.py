@@ -8,6 +8,7 @@ class User(AbstractUser):
     username = None
     name = models.CharField(max_length=255, null=False, blank=False)
     email = models.EmailField(unique=True, null=False, blank=False)
+    profile = models.CharField(max_length=1000, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
