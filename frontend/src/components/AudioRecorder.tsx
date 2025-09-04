@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Mic, MicOff, Wifi, WifiOff, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import './AudioRecorder.css';
@@ -8,29 +8,166 @@ interface AudioRecorderProps {
   onConnectionStatus: (status: string) => void;
 }
 
-const AudioRecorder: React.FC<AudioRecorderProps> = ({ 
-  onNewMessage, 
-  onConnectionStatus 
+const AudioRecorder: React.FC<AudioRecorderProps> = ({
+  onNewMessage,
+  onConnectionStatus
 }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('Disconnected');
   const { accessToken } = useAuth();
-  
+
   const wsRef = useRef<WebSocket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const silenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const isMonitoringRef = useRef<boolean>(false);
+
+  const SILENCE_THRESHOLD = 0.01;
+  const SILENCE_DURATION = 2000;
+
+  // Callback to guarantee stable function
+  const stopRecording = useCallback(() => {
+    console.log('stopRecording chamado, isRecording:', isRecording);
+
+    // Silence monitoring flag
+    isMonitoringRef.current = false;
+
+    if (silenceTimeoutRef.current) {
+      clearTimeout(silenceTimeoutRef.current);
+      silenceTimeoutRef.current = null;
+    }
+
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+
+    // Stop the MediaRecorder if it's recording
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      console.log('Stopping MediaRecorder...');
+      mediaRecorderRef.current.stop();
+    }
+
+    // Update state
+    setIsRecording(false);
+
+    // Send stop signal using WebSocket
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'stop_recording',
+        timestamp: Date.now()
+      }));
+    }
+
+    // Stop all tracks of the stream
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => {
+        track.stop();
+        console.log('Track parada:', track.kind);
+      });
+      streamRef.current = null;
+    }
+
+    // Clean Audio Context
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.close().then(() => {
+        console.log('AudioContext closed');
+      });
+      audioContextRef.current = null;
+    }
+
+    analyserRef.current = null;
+
+  }, [isRecording]);
+
+  const detectSilence = useCallback(() => {
+    if (!analyserRef.current || !isMonitoringRef.current) {
+      return;
+    }
+
+    const bufferLength = analyserRef.current.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    analyserRef.current.getByteTimeDomainData(dataArray);
+
+    // Calculate RMS level
+    let sum = 0;
+    for (let i = 0; i < bufferLength; i++) {
+      const sample = (dataArray[i] - 128) / 128;
+      sum += sample * sample;
+    }
+    const rms = Math.sqrt(sum / bufferLength);
+
+    // If volume is down
+    if (rms < SILENCE_THRESHOLD) {
+      if (!silenceTimeoutRef.current) {
+        console.log('Checking silence...');
+        silenceTimeoutRef.current = setTimeout(() => {
+          console.log('Silence detected for 2 seconds! Stopping recording...');
+          stopRecording();
+        }, SILENCE_DURATION);
+      }
+    } else {
+      // If there's sound, cancel the silence timeout
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
+        silenceTimeoutRef.current = null;
+      }
+    }
+
+    if (isMonitoringRef.current) {
+      animationFrameRef.current = requestAnimationFrame(detectSilence);
+    }
+  }, [stopRecording, SILENCE_THRESHOLD, SILENCE_DURATION]);
+
+  // Function to initialize silence detection
+  const startSilenceDetection = useCallback((stream: MediaStream) => {
+    try {
+      console.log('Starting silence detection...');
+
+      // Criar novo AudioContext
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const source = audioContextRef.current.createMediaStreamSource(stream);
+      analyserRef.current = audioContextRef.current.createAnalyser();
+
+      analyserRef.current.fftSize = 256;
+      analyserRef.current.smoothingTimeConstant = 0.8;
+      source.connect(analyserRef.current);
+
+      isMonitoringRef.current = true;
+      detectSilence();
+
+    } catch (error) {
+      console.error('Error initializing silence detection:', error);
+    }
+  }, [detectSilence]);
 
   useEffect(() => {
     if (accessToken) {
       connectWebSocket();
     }
-    
+
     return () => {
       disconnect();
     };
   }, [accessToken]);
+
+  // Cleanup when component unmounts
+  useEffect(() => {
+    return () => {
+      isMonitoringRef.current = false;
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
+      }
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
 
   const connectWebSocket = () => {
     try {
@@ -39,10 +176,17 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         onConnectionStatus('Authentication required');
         return;
       }
+    const backendRaw = import.meta.env.VITE_BACKEND_IP;
 
-      const wsUrl = `ws://localhost:8000/ws/audio/?token=${accessToken}`;
+    if (!backendRaw) {
+        throw new Error('VITE_BACKEND_IP is not set');
+    }
+
+    const backendClean = backendRaw.trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    const protocol = backendRaw.trim().toLowerCase().startsWith('https://') ? 'wss://' : 'ws://';
+    const wsUrl = `${protocol}${backendClean}/ws/audio/?token=${accessToken}`;
       wsRef.current = new WebSocket(wsUrl);
-      
+
       wsRef.current.onopen = () => {
         setIsConnected(true);
         setConnectionStatus('Connected');
@@ -53,7 +197,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       wsRef.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          
+
           switch (data.type) {
             case 'connection_established':
               console.log('Connection established:', data.message);
@@ -91,8 +235,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         setConnectionStatus('Disconnected');
         onConnectionStatus('Disconnected');
         console.log('WebSocket disconnected');
-        
-        // Attempt to reconnect after 3 seconds if we have a token
+
         setTimeout(() => {
           if (!isConnected && accessToken) {
             connectWebSocket();
@@ -107,14 +250,10 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   };
 
   const disconnect = () => {
-    if (mediaRecorderRef.current && isRecording) {
+    if (isRecording) {
       stopRecording();
     }
-    
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-    }
-    
+
     if (wsRef.current) {
       wsRef.current.close();
     }
@@ -127,23 +266,21 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         return;
       }
 
-      // Request microphone access
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-        } 
+        }
       });
-      
+
       streamRef.current = stream;
       chunksRef.current = [];
 
-      // Create MediaRecorder
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: 'audio/webm;codecs=opus'
       });
-      
+
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
@@ -157,10 +294,18 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         sendAudioData(audioBlob);
       };
 
-      mediaRecorder.start();
+      mediaRecorder.onerror = (event) => {
+        console.error('MediaRecorder error:', event);
+      };
+
+      mediaRecorder.start(100); // Collect data every 100ms
       setIsRecording(true);
 
-      // Send start recording signal
+      // Start silence detection AFTER MediaRecorder starts
+      setTimeout(() => {
+        startSilenceDetection(stream);
+      }, 100);
+
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({
           type: 'start_recording',
@@ -168,46 +313,27 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         }));
       }
 
+
     } catch (error) {
       console.error('Error starting recording:', error);
       alert('Error accessing microphone. Please ensure you have given permission.');
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-
-      // Send stop recording signal
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({
-          type: 'stop_recording',
-          timestamp: Date.now()
-        }));
-      }
-
-      // Stop all tracks
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-    }
-  };
-
   const sendAudioData = async (audioBlob: Blob) => {
     try {
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        // Convert blob to base64
         const reader = new FileReader();
         reader.onloadend = () => {
           const base64Audio = reader.result as string;
-          const audioData = base64Audio.split(',')[1]; // Remove data:audio/webm;base64, prefix
+          const audioData = base64Audio.split(',')[1];
 
           wsRef.current!.send(JSON.stringify({
             type: 'audio_data',
             audio_data: audioData,
             timestamp: Date.now()
           }));
+
         };
         reader.readAsDataURL(audioBlob);
       }
@@ -217,6 +343,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   };
 
   const toggleRecording = () => {
+    console.log('Toggle recording, current state:', isRecording);
     if (isRecording) {
       stopRecording();
     } else {
@@ -242,24 +369,24 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
           <span>{connectionStatus}</span>
         </div>
       </div>
-      
+
       <div className="recorder-controls">
         <button
           className={`mic-button ${isRecording ? 'recording' : ''} ${!isConnected ? 'disabled' : ''}`}
           onClick={toggleRecording}
           disabled={!isConnected}
-          title={isRecording ? 'Stop recording' : 'Start recording'}
+          title={isRecording ? 'Stop recording (or wait 2s of silence)' : 'Start recording'}
         >
           <div className="mic-icon">
             {isRecording ? <MicOff size={24} /> : <Mic size={24} />}
           </div>
         </button>
       </div>
-      
+
       {isRecording && (
         <div className="recording-indicator">
           <div className="pulse"></div>
-          <span>Recording...</span>
+          <span>Recording... (stops after 2s of silence)</span>
         </div>
       )}
     </div>
