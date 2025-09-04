@@ -147,6 +147,7 @@ AUTH_USER_MODEL = 'app.User'
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # Vite default port
     "http://127.0.0.1:5173",
+	"https://extraordinary-melba-ac3bc9.netlify.app",
 ]
 
 CORS_ALLOW_CREDENTIALS = True

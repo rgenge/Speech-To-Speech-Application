@@ -41,10 +41,10 @@ const TranscriptionDisplay: React.FC<TranscriptionDisplayProps> = ({
 
   const loadConversationHistory = async () => {
     if (!accessToken) return;
-	const backendIp = import.meta.env.BACKEND_IP;
+	const backendIp = import.meta.env.VITE_BACKEND_IP;
     setIsLoadingHistory(true);
     try {
-      const response = await fetch(`http://${backendIp}/api/conversations/`, {
+      const response = await fetch(`${backendIp}/api/conversations/`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
@@ -77,7 +77,7 @@ const TranscriptionDisplay: React.FC<TranscriptionDisplayProps> = ({
 	const backendIp = import.meta.env.VITE_BACKEND_IP;
     setIsClearingConversations(true);
     try {
-      const response = await fetch(`http://${backendIp}/api/conversations/clear/`, {
+      const response = await fetch(`${backendIp}/api/conversations/clear/`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
